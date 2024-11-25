@@ -334,7 +334,7 @@ void activeDefragQuickListNodes(quicklist *ql) {
 /* when the value has lots of elements, we want to handle it later and not as
  * part of the main dictionary scan. this is needed in order to prevent latency
  * spikes when handling large items */
-void defragLater(serverDb *db, valkey *obj) {
+void defragLater(serverDb *db, robj *obj) {
     sds key = sdsdup(objectGetKey(obj));
     listAddNodeTail(db->defrag_later, key);
 }
@@ -434,7 +434,7 @@ void scanLaterHash(robj *ob, unsigned long *cursor) {
     *cursor = dictScanDefrag(d, *cursor, scanCallbackCountScanned, &defragfns, NULL);
 }
 
-void defragQuicklist(serverDb *db, valkey *ob) {
+void defragQuicklist(serverDb *db, robj *ob) {
     quicklist *ql = ob->ptr, *newql;
     serverAssert(ob->type == OBJ_LIST && ob->encoding == OBJ_ENCODING_QUICKLIST);
     if ((newql = activeDefragAlloc(ql))) ob->ptr = ql = newql;
@@ -444,7 +444,7 @@ void defragQuicklist(serverDb *db, valkey *ob) {
         activeDefragQuickListNodes(ql);
 }
 
-void defragZsetSkiplist(serverDb *db, valkey *ob) {
+void defragZsetSkiplist(serverDb *db, robj *ob) {
     zset *zs = (zset *)ob->ptr;
     zset *newzs;
     zskiplist *newzsl;
@@ -468,7 +468,7 @@ void defragZsetSkiplist(serverDb *db, valkey *ob) {
     if ((newdict = dictDefragTables(zs->dict))) zs->dict = newdict;
 }
 
-void defragHash(serverDb *db, valkey *ob) {
+void defragHash(serverDb *db, robj *ob) {
     dict *d, *newd;
     serverAssert(ob->type == OBJ_HASH && ob->encoding == OBJ_ENCODING_HT);
     d = ob->ptr;
@@ -480,7 +480,7 @@ void defragHash(serverDb *db, valkey *ob) {
     if ((newd = dictDefragTables(ob->ptr))) ob->ptr = newd;
 }
 
-void defragSet(serverDb *db, valkey *ob) {
+void defragSet(serverDb *db, robj *ob) {
     dict *d, *newd;
     serverAssert(ob->type == OBJ_SET && ob->encoding == OBJ_ENCODING_HT);
     d = ob->ptr;
@@ -623,7 +623,7 @@ void *defragStreamConsumerGroup(raxIterator *ri, void *privdata) {
     return NULL;
 }
 
-void defragStream(serverDb *db, valkey *ob) {
+void defragStream(serverDb *db, robj *ob) {
     serverAssert(ob->type == OBJ_STREAM && ob->encoding == OBJ_ENCODING_STREAM);
     stream *s = ob->ptr, *news;
 
@@ -643,7 +643,7 @@ void defragStream(serverDb *db, valkey *ob) {
 /* Defrag a module key. This is either done immediately or scheduled
  * for later. Returns then number of pointers defragged.
  */
-void defragModule(serverDb *db, valkey *obj) {
+void defragModule(serverDb *db, robj *obj) {
     serverAssert(obj->type == OBJ_MODULE);
     void *sds_key_passed_as_robj = objectGetKey(obj);
     /* Fun fact (and a bug since forever): The key is passed to
@@ -656,7 +656,7 @@ void defragModule(serverDb *db, valkey *obj) {
 
 /* for each key we scan in the main dict, this function will attempt to defrag
  * all the various pointers it has. */
-void defragKey(defragCtx *ctx, valkey **elemref) {
+void defragKey(defragCtx *ctx, robj **elemref) {
     serverDb *db = ctx->privdata;
     int slot = ctx->slot;
     robj *newob, *ob;
@@ -726,7 +726,7 @@ void defragKey(defragCtx *ctx, valkey **elemref) {
 /* Defrag scan callback for the main db dictionary. */
 void defragScanCallback(void *privdata, void *elemref) {
     long long hits_before = server.stat_active_defrag_hits;
-    defragKey((defragCtx *)privdata, (valkey **)elemref);
+    defragKey((defragCtx *)privdata, (robj **)elemref);
     if (server.stat_active_defrag_hits != hits_before)
         server.stat_active_defrag_key_hits++;
     else
@@ -807,7 +807,7 @@ void defragOtherGlobals(void) {
 
 /* returns 0 more work may or may not be needed (see non-zero cursor),
  * and 1 if time is up and more work is needed. */
-int defragLaterItem(valkey *ob, unsigned long *cursor, long long endtime, int dbid) {
+int defragLaterItem(robj *ob, unsigned long *cursor, long long endtime, int dbid) {
     if (ob) {
         if (ob->type == OBJ_LIST) {
             return scanLaterList(ob, cursor, endtime);
@@ -870,7 +870,7 @@ int defragLaterStep(serverDb *db, int slot, long long endtime) {
         }
 
         /* each time we enter this function we need to fetch the object again (if it still exists) */
-        valkey *ob = NULL;
+        robj *ob = NULL;
         kvstoreHashtableFind(db->keys, slot, defrag_later_current_key, (void **)&ob);
         key_defragged = server.stat_active_defrag_hits;
         do {

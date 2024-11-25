@@ -281,7 +281,7 @@ void xorObjectDigest(serverDb *db, robj *keyobj, unsigned char *digest, robj *o)
  * a different digest. */
 void computeDatasetDigest(unsigned char *final) {
     unsigned char digest[20];
-    valkey *o;
+    robj *o;
     int j;
     uint32_t aux;
 

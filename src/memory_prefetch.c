@@ -126,7 +126,7 @@ static void prefetchEntry(KeyPrefetchInfo *info) {
 
 /* Prefetch the entry's value. If the value is found.*/
 static void prefetchValue(KeyPrefetchInfo *info) {
-    valkey *val;
+    robj *val;
     if (hashtableIncrementalFindGetResult(&info->hashtab_state, (void **)&val)) {
         if (val->encoding == OBJ_ENCODING_RAW && val->type == OBJ_STRING) {
             valkey_prefetch(val->ptr);

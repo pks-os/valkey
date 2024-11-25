@@ -1316,7 +1316,7 @@ werr:
 }
 
 ssize_t rdbSaveDb(rio *rdb, int dbid, int rdbflags, long *key_counter) {
-    valkey *o;
+    robj *o;
     ssize_t written = 0;
     ssize_t res;
     kvstoreIterator *kvs_it = NULL;
@@ -3300,7 +3300,7 @@ int rdbLoadRioWithLoadingCtx(rio *rdb, int rdbflags, rdbSaveInfo *rsi, rdbLoadin
             initStaticStringObject(keyobj, key);
 
             /* Add the new object in the hash table */
-            valkey *added = dbAddRDBLoad(db, key, val);
+            robj *added = dbAddRDBLoad(db, key, val);
             server.rdb_last_load_keys_loaded++;
             if (!added) {
                 if (rdbflags & RDBFLAGS_ALLOW_DUP) {

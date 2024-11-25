@@ -134,7 +134,7 @@ robj *createRawStringObject(const char *ptr, size_t len) {
 
 /* Creates a new embedded string object and copies the content of key, val and
  * expire to the new object. LRU is set to 0. */
-static valkey *createEmbeddedStringObjectWithKeyAndExpire(const char *val_ptr,
+static robj *createEmbeddedStringObjectWithKeyAndExpire(const char *val_ptr,
                                                           size_t val_len,
                                                           const sds key,
                                                           long long expire) {
@@ -154,7 +154,7 @@ static valkey *createEmbeddedStringObjectWithKeyAndExpire(const char *val_ptr,
 
     /* Allocate and set the declared fields. */
     size_t bufsize = 0;
-    valkey *o = zmalloc_usable(min_size, &bufsize);
+    robj *o = zmalloc_usable(min_size, &bufsize);
     o->type = OBJ_STRING;
     o->encoding = OBJ_ENCODING_EMBSTR;
     o->refcount = 1;
@@ -240,7 +240,7 @@ robj *createStringObjectWithKeyAndExpire(const char *ptr, size_t len, const sds 
     }
 }
 
-sds objectGetKey(const valkey *val) {
+sds objectGetKey(const robj *val) {
     unsigned char *data = (void *)(val + 1);
     if (val->hasexpire) {
         /* Skip expire field */
@@ -254,7 +254,7 @@ sds objectGetKey(const valkey *val) {
     return NULL;
 }
 
-long long objectGetExpire(const valkey *val) {
+long long objectGetExpire(const robj *val) {
     unsigned char *data = (void *)(val + 1);
     if (val->hasexpire) {
         return *(long long *)data;
@@ -266,7 +266,7 @@ long long objectGetExpire(const valkey *val) {
 /* This functions may reallocate the value. The new allocation is returned and
  * the old object's reference counter is decremented and possibly freed. Use the
  * returned object instead of 'val' after calling this function. */
-valkey *objectSetExpire(valkey *val, long long expire) {
+robj *objectSetExpire(robj *val, long long expire) {
     if (val->hasexpire) {
         /* Update existing expire field. */
         unsigned char *data = (void *)(val + 1);
@@ -282,9 +282,9 @@ valkey *objectSetExpire(valkey *val, long long expire) {
 /* This functions may reallocate the value. The new allocation is returned and
  * the old object's reference counter is decremented and possibly freed. Use the
  * returned object instead of 'val' after calling this function. */
-valkey *objectSetKeyAndExpire(valkey *val, sds key, long long expire) {
+robj *objectSetKeyAndExpire(robj *val, sds key, long long expire) {
     if (val->type == OBJ_STRING && val->encoding == OBJ_ENCODING_EMBSTR) {
-        valkey *new = createStringObjectWithKeyAndExpire(val->ptr, sdslen(val->ptr), key, expire);
+        robj *new = createStringObjectWithKeyAndExpire(val->ptr, sdslen(val->ptr), key, expire);
         new->lru = val->lru;
         decrRefCount(val);
         return new;
@@ -308,7 +308,7 @@ valkey *objectSetKeyAndExpire(valkey *val, sds key, long long expire) {
          * can be duplicated, but for a module type is not always possible. */
         serverPanic("Not implemented");
     }
-    valkey *new = createObjectWithKeyAndExpire(val->type, ptr, key, expire);
+    robj *new = createObjectWithKeyAndExpire(val->type, ptr, key, expire);
     new->encoding = val->encoding;
     new->lru = val->lru;
     decrRefCount(val);
@@ -1689,7 +1689,7 @@ void memoryCommand(client *c) {
                 return;
             }
         }
-        valkey *obj = dbFind(c->db, c->argv[2]->ptr);
+        robj *obj = dbFind(c->db, c->argv[2]->ptr);
         if (obj == NULL) {
             addReplyNull(c);
             return;

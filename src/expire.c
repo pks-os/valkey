@@ -55,7 +55,7 @@ static double avg_ttl_factor[16] = {0.98, 0.9604, 0.941192, 0.922368, 0.903921, 
  *
  * The parameter 'now' is the current time in milliseconds as is passed
  * to the function to avoid too many gettimeofday() syscalls. */
-int activeExpireCycleTryExpire(serverDb *db, valkey *val, long long now) {
+int activeExpireCycleTryExpire(serverDb *db, robj *val, long long now) {
     long long t = objectGetExpire(val);
     serverAssert(t >= 0);
     if (now > t) {
@@ -128,7 +128,7 @@ typedef struct {
 } expireScanData;
 
 void expireScanCallback(void *privdata, void *entry) {
-    valkey *val = entry;
+    robj *val = entry;
     expireScanData *data = privdata;
     long long ttl = objectGetExpire(val) - data->now;
     if (activeExpireCycleTryExpire(data->db, val, data->now)) {
@@ -422,7 +422,7 @@ void expireReplicaKeys(void) {
         while (dbids && dbid < server.dbnum) {
             if ((dbids & 1) != 0) {
                 serverDb *db = server.db + dbid;
-                valkey *expire = dbFindExpires(db, keyname);
+                robj *expire = dbFindExpires(db, keyname);
                 int expired = 0;
 
                 if (expire && activeExpireCycleTryExpire(server.db + dbid, expire, start)) {

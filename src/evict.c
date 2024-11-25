@@ -149,7 +149,7 @@ int evictionPoolPopulate(serverDb *db, kvstore *samplekvs, struct evictionPoolEn
     count = kvstoreHashtableSampleEntries(samplekvs, slot, (void **)&samples, server.maxmemory_samples);
     for (j = 0; j < count; j++) {
         unsigned long long idle;
-        valkey *o = samples[j];
+        robj *o = samples[j];
         sds key = objectGetKey(o);
 
         /* Calculate the idle time according to the policy. This is called
@@ -556,7 +556,7 @@ int performEvictions(void) {
         sds bestkey = NULL;
         int bestdbid;
         serverDb *db;
-        valkey *valkey;
+        robj *valkey;
 
         if (server.maxmemory_policy & (MAXMEMORY_FLAG_LRU | MAXMEMORY_FLAG_LFU) ||
             server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL) {

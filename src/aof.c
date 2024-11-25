@@ -2190,7 +2190,7 @@ werr:
 }
 
 int rewriteAppendOnlyFileRio(rio *aof) {
-    valkey *o;
+    robj *o;
     int j;
     long key_count = 0;
     long long updated_time = 0;

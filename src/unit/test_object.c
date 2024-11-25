@@ -20,7 +20,7 @@ int test_object_with_key(int argc, char **argv, int flags) {
     incrRefCount(val);
 
     /* Create valkey: val with key. */
-    valkey *valkey = objectSetKeyAndExpire(val, key, -1);
+    robj *valkey = objectSetKeyAndExpire(val, key, -1);
     TEST_ASSERT(valkey->encoding == OBJ_ENCODING_EMBSTR);
     TEST_ASSERT(objectGetKey(valkey) != NULL);
 

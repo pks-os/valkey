@@ -84,7 +84,6 @@ typedef long long ustime_t; /* microsecond time type. */
 
 #define VALKEYMODULE_CORE 1
 typedef struct serverObject robj;
-typedef struct serverObject valkey;
 #include "valkeymodule.h" /* Modules API defines. */
 
 /* Following includes allow test functions to be called from main() */
@@ -3036,12 +3035,12 @@ unsigned long long estimateObjectIdleTime(robj *o);
 void trimStringObjectIfNeeded(robj *o, int trim_small_values);
 #define sdsEncodedObject(objptr) (objptr->encoding == OBJ_ENCODING_RAW || objptr->encoding == OBJ_ENCODING_EMBSTR)
 
-/* Objects with key attached, AKA valkey objects */
-valkey *createObjectWithKeyAndExpire(int type, void *ptr, const sds key, long long expire);
-valkey *objectSetKeyAndExpire(valkey *val, sds key, long long expire);
-valkey *objectSetExpire(valkey *val, long long expire);
-sds objectGetKey(const valkey *val);
-long long objectGetExpire(const valkey *val);
+/* Objects with key attached, AKA valkey (val+key) objects */
+robj *createObjectWithKeyAndExpire(int type, void *ptr, const sds key, long long expire);
+robj *objectSetKeyAndExpire(robj *val, sds key, long long expire);
+robj *objectSetExpire(robj *val, long long expire);
+sds objectGetKey(const robj *val);
+long long objectGetExpire(const robj *val);
 
 /* Synchronous I/O with timeout */
 ssize_t syncWrite(int fd, char *ptr, ssize_t size, long long timeout);
@@ -3368,8 +3367,8 @@ int calculateKeySlot(sds key);
 /* kvstore wrappers */
 int dbExpand(serverDb *db, uint64_t db_size, int try_expand);
 int dbExpandExpires(serverDb *db, uint64_t db_size, int try_expand);
-valkey *dbFind(serverDb *db, sds key);
-valkey *dbFindExpires(serverDb *db, sds key);
+robj *dbFind(serverDb *db, sds key);
+robj *dbFindExpires(serverDb *db, sds key);
 unsigned long long dbSize(serverDb *db);
 unsigned long long dbScan(serverDb *db, unsigned long long cursor, hashtableScanFunction scan_cb, void *privdata);
 
@@ -3550,9 +3549,9 @@ int objectSetLRUOrLFU(robj *val, long long lfu_freq, long long lru_idle, long lo
 #define LOOKUP_NOEFFECTS \
     (LOOKUP_NONOTIFY | LOOKUP_NOSTATS | LOOKUP_NOTOUCH | LOOKUP_NOEXPIRE) /* Avoid any effects from fetching the key */
 
-valkey *dbAdd(serverDb *db, robj *key, robj *val);
-valkey *dbAddRDBLoad(serverDb *db, sds key, robj *val);
-valkey *dbReplaceValue(serverDb *db, robj *key, robj *val);
+robj *dbAdd(serverDb *db, robj *key, robj *val);
+robj *dbAddRDBLoad(serverDb *db, sds key, robj *val);
+robj *dbReplaceValue(serverDb *db, robj *key, robj *val);
 
 #define SETKEY_KEEPTTL 1
 #define SETKEY_NO_SIGNAL 2
