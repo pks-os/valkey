@@ -56,7 +56,7 @@ static keyStatus expireIfNeededWithDictIndex(serverDb *db, robj *key, robj *val,
 static keyStatus expireIfNeeded(serverDb *db, robj *key, robj *val, int flags);
 static int keyIsExpiredWithDictIndex(serverDb *db, robj *key, int dict_index);
 static int objectIsExpired(robj *val);
-static robj *dbSetValue(serverDb *db, robj *key, robj *val, int overwrite, void **oldref);
+static void dbSetValue(serverDb *db, robj *key, robj **valref, int overwrite, void **oldref);
 static int getKVStoreIndexForKey(sds key);
 static robj *dbFindExpiresWithDictIndex(serverDb *db, sds key, int dict_index);
 
@@ -196,40 +196,41 @@ robj *lookupKeyWriteOrReply(client *c, robj *key, robj *reply) {
  * A copy of 'key' is stored in the database. The caller must ensure the
  * `key` is properly freed by calling decrRefcount(key).
  *
- * The value 'val' may (if its reference counter == 1) be reallocated and become
+ * The value may (if its reference counter == 1) be reallocated and become
  * invalid after a call to this function. The (possibly reallocated) value is
- * stored in the database and also returned by this function, so the caller must
- * use the returned pointer rather than 'val' after calling this function.
+ * stored in the database and the 'valref' pointer is updated to point to the
+ * new allocation.
  *
  * The reference counter of the returned value is not incremented, so the caller
  * should not free the value using decrRefcount after calling this function.
  *
  * If the update_if_existing argument is false, the program is aborted
  * if the key already exists, otherwise, it can fall back to dbOverwrite. */
-static robj *dbAddInternal(serverDb *db, robj *key, robj *val, int update_if_existing) {
+static void dbAddInternal(serverDb *db, robj *key, robj **valref, int update_if_existing) {
     int dict_index = getKVStoreIndexForKey(key->ptr);
     void **oldref = NULL;
     if (update_if_existing) {
         oldref = kvstoreHashtableFindRef(db->keys, dict_index, key->ptr);
         if (oldref != NULL) {
-            val = dbSetValue(db, key, val, 1, oldref);
-            return val;
+            dbSetValue(db, key, valref, 1, oldref);
+            return;
         }
     } else {
         debugServerAssertWithInfo(NULL, key, kvstoreHashtableFindRef(db->keys, dict_index, key->ptr) == NULL);
     }
 
     /* Not existing. Convert val to valkey object and insert. */
+    robj *val = *valref;
     val = objectSetKeyAndExpire(val, key->ptr, -1);
     initObjectLRUOrLFU(val);
     kvstoreHashtableAdd(db->keys, dict_index, val);
     signalKeyAsReady(db, key, val->type);
     notifyKeyspaceEvent(NOTIFY_NEW, "new", key, db->id);
-    return val;
+    *valref = val;
 }
 
-robj *dbAdd(serverDb *db, robj *key, robj *val) {
-    return dbAddInternal(db, key, val, 0);
+void dbAdd(serverDb *db, robj *key, robj **valref) {
+    dbAddInternal(db, key, valref, 0);
 }
 
 /* Returns which dict index should be used with kvstore for a given key. */
@@ -278,16 +279,18 @@ int getKeySlot(sds key) {
  *
  * The function returns 1 if the key was added to the database, otherwise 0 is returned.
  */
-robj *dbAddRDBLoad(serverDb *db, sds key, robj *val) {
+int dbAddRDBLoad(serverDb *db, sds key, robj **valref) {
     int dict_index = getKVStoreIndexForKey(key);
     hashtablePosition pos;
     if (!kvstoreHashtableFindPositionForInsert(db->keys, dict_index, key, &pos, NULL)) {
-        return NULL;
+        return 0;
     }
+    robj *val = *valref;
     val = objectSetKeyAndExpire(val, key, -1);
     kvstoreHashtableInsertAtPosition(db->keys, dict_index, val, &pos);
     initObjectLRUOrLFU(val);
-    return val;
+    *valref = val;
+    return 1;
 }
 
 /* Overwrite an existing key with a new value. Incrementing the reference
@@ -305,7 +308,8 @@ robj *dbAddRDBLoad(serverDb *db, sds key, robj *val) {
  * value should be stored.
  *
  * The program is aborted if the key was not already present. */
-static robj *dbSetValue(serverDb *db, robj *key, robj *val, int overwrite, void **oldref) {
+static void dbSetValue(serverDb *db, robj *key, robj **valref, int overwrite, void **oldref) {
+    robj *val = *valref;
     if (oldref == NULL) {
         int dict_index = getKVStoreIndexForKey(key->ptr);
         oldref = kvstoreHashtableFindRef(db->keys, dict_index, key->ptr);
@@ -367,23 +371,21 @@ static robj *dbSetValue(serverDb *db, robj *key, robj *val, int overwrite, void 
     } else {
         decrRefCount(old);
     }
-    return new;
+    *valref = new;
 }
 
 /* Replace an existing key with a new value, we just replace value and don't
  * emit any events */
-robj *dbReplaceValue(serverDb *db, robj *key, robj *val) {
-    return dbSetValue(db, key, val, 0, NULL);
+void dbReplaceValue(serverDb *db, robj *key, robj **valref) {
+    dbSetValue(db, key, valref, 0, NULL);
 }
 
 /* High level Set operation. This function can be used in order to set
  * a key, whatever it was existing or not, to a new object.
  *
- * 1) The ref count of the value object is *not* incremented. The value
- *    may be reallocated when adding it to the database. A pointer to
- *    the reallocated object is returned. If you need to retain 'val',
- *    increment its reference counter before calling this function.
- *    Otherwise, use the returned value instead of 'val' after this call.
+ * 1) The value may be reallocated when adding it to the database. The value
+ *    pointer 'valref' is updated to point to the reallocated object. The
+ *    reference count of the value object is *not* incremented.
  * 2) clients WATCHing for the destination key notified.
  * 3) The expire time of the key is reset (the key is made persistent),
  *    unless 'SETKEY_KEEPTTL' is enabled in flags.
@@ -393,7 +395,7 @@ robj *dbReplaceValue(serverDb *db, robj *key, robj *val) {
  * All the new keys in the database should be created via this interface.
  * The client 'c' argument may be set to NULL if the operation is performed
  * in a context where there is no clear client performing the operation. */
-robj *setKey(client *c, serverDb *db, robj *key, robj *val, int flags) {
+void setKey(client *c, serverDb *db, robj *key, robj **valref, int flags) {
     int keyfound = 0;
 
     if (flags & SETKEY_ALREADY_EXIST)
@@ -404,15 +406,14 @@ robj *setKey(client *c, serverDb *db, robj *key, robj *val, int flags) {
         keyfound = (lookupKeyWrite(db, key) != NULL);
 
     if (!keyfound) {
-        val = dbAdd(db, key, val);
+        dbAdd(db, key, valref);
     } else if (keyfound < 0) {
-        val = dbAddInternal(db, key, val, 1);
+        dbAddInternal(db, key, valref, 1);
     } else {
-        val = dbSetValue(db, key, val, 1, NULL);
+        dbSetValue(db, key, valref, 1, NULL);
     }
     if (!(flags & SETKEY_KEEPTTL)) removeExpire(db, key);
     if (!(flags & SETKEY_NO_SIGNAL)) signalModifiedKey(c, db, key);
-    return val;
 }
 
 /* Return a random key, in form of an Object.
@@ -549,7 +550,7 @@ robj *dbUnshareStringValue(serverDb *db, robj *key, robj *o) {
         robj *decoded = getDecodedObject(o);
         o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));
         decrRefCount(decoded);
-        o = dbReplaceValue(db, key, o);
+        dbReplaceValue(db, key, &o);
     }
     return o;
 }
@@ -1387,7 +1388,7 @@ void renameGenericCommand(client *c, int nx) {
         dbDelete(c->db, c->argv[2]);
     }
     dbDelete(c->db, c->argv[1]);
-    o = dbAdd(c->db, c->argv[2], o);
+    dbAdd(c->db, c->argv[2], &o);
     if (expire != -1) o = setExpire(c, c->db, c->argv[2], expire);
     signalModifiedKey(c, c->db, c->argv[1]);
     signalModifiedKey(c, c->db, c->argv[2]);
@@ -1453,7 +1454,7 @@ void moveCommand(client *c) {
     incrRefCount(o);           /* ref counter = 2 */
     dbDelete(src, c->argv[1]); /* ref counter = 1 */
 
-    o = dbAdd(dst, c->argv[1], o);
+    dbAdd(dst, c->argv[1], &o);
     if (expire != -1) o = setExpire(c, dst, c->argv[1], expire);
 
     /* OK! key moved */
@@ -1554,7 +1555,7 @@ void copyCommand(client *c) {
         dbDelete(dst, newkey);
     }
 
-    newobj = dbAdd(dst, newkey, newobj);
+    dbAdd(dst, newkey, &newobj);
     if (expire != -1) newobj = setExpire(c, dst, newkey, expire);
 
     /* OK! key copied */
@@ -1772,8 +1773,8 @@ robj *setExpire(client *c, serverDb *db, robj *key, long long when) {
         /* It already exists in set of keys with expire. */
         debugServerAssert(!kvstoreHashtableAdd(db->expires, dict_index, newval));
     } else {
-        /* No old expire. Update the pointer in the keys hashtab, if needed, and
-         * add it to the expires hashtable. */
+        /* No old expire. Update the pointer in the keys hashtable, if needed,
+         * and add it to the expires hashtable. */
         if (newval != val) {
             val = *valref = newval;
         }

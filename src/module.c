@@ -717,7 +717,7 @@ int moduleCreateEmptyKey(ValkeyModuleKey *key, int type) {
     case VALKEYMODULE_KEYTYPE_STREAM: obj = createStreamObject(); break;
     default: return VALKEYMODULE_ERR;
     }
-    obj = dbAdd(key->db, key->key, obj);
+    dbAdd(key->db, key->key, &obj);
     key->value = obj;
     moduleInitKeyTypeSpecific(key);
     return VALKEYMODULE_OK;
@@ -4264,8 +4264,10 @@ int VM_GetToDbIdFromOptCtx(ValkeyModuleKeyOptCtx *ctx) {
 int VM_StringSet(ValkeyModuleKey *key, ValkeyModuleString *str) {
     if (!(key->mode & VALKEYMODULE_WRITE) || key->iter) return VALKEYMODULE_ERR;
     VM_DeleteKey(key);
+    /* Retain str so setKey copies it to db rather than reallocating it. */
     incrRefCount(str);
-    key->value = setKey(key->ctx->client, key->db, key->key, str, SETKEY_NO_SIGNAL);
+    setKey(key->ctx->client, key->db, key->key, &str, SETKEY_NO_SIGNAL);
+    key->value = str;
     return VALKEYMODULE_OK;
 }
 
@@ -4344,7 +4346,7 @@ int VM_StringTruncate(ValkeyModuleKey *key, size_t newlen) {
     if (key->value == NULL) {
         /* Empty key: create it with the new size. */
         robj *o = createObject(OBJ_STRING, sdsnewlen(NULL, newlen));
-        o = setKey(key->ctx->client, key->db, key->key, o, SETKEY_NO_SIGNAL);
+        setKey(key->ctx->client, key->db, key->key, &o, SETKEY_NO_SIGNAL);
         key->value = o;
     } else {
         /* Unshare and resize. */
@@ -6910,7 +6912,7 @@ int VM_ModuleTypeSetValue(ValkeyModuleKey *key, moduleType *mt, void *value) {
     if (!(key->mode & VALKEYMODULE_WRITE) || key->iter) return VALKEYMODULE_ERR;
     VM_DeleteKey(key);
     robj *o = createModuleObject(mt, value);
-    o = setKey(key->ctx->client, key->db, key->key, o, SETKEY_NO_SIGNAL);
+    setKey(key->ctx->client, key->db, key->key, &o, SETKEY_NO_SIGNAL);
     key->value = o;
     return VALKEYMODULE_OK;
 }

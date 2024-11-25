@@ -125,8 +125,7 @@ void setGenericCommand(client *c,
     setkey_flags |= ((flags & OBJ_KEEPTTL) || expire) ? SETKEY_KEEPTTL : 0;
     setkey_flags |= found ? SETKEY_ALREADY_EXIST : SETKEY_DOESNT_EXIST;
 
-    /* Retain val, c->argv refers to it. This causes setVal to duplicate the string. */
-    val = setKey(c, c->db, key, val, setkey_flags);
+    setKey(c, c->db, key, &val, setkey_flags);
     if (expire) val = setExpire(c, c->db, key, milliseconds);
 
     /* By setting the reallocated value back into argv, we can avoid duplicating
@@ -448,7 +447,7 @@ void getdelCommand(client *c) {
 void getsetCommand(client *c) {
     if (getGenericCommand(c) == C_ERR) return;
     c->argv[2] = tryObjectEncoding(c->argv[2]);
-    c->argv[2] = setKey(c, c->db, c->argv[1], c->argv[2], 0);
+    setKey(c, c->db, c->argv[1], &c->argv[2], 0);
     incrRefCount(c->argv[2]);
     notifyKeyspaceEvent(NOTIFY_STRING, "set", c->argv[1], c->db->id);
     server.dirty++;
@@ -483,7 +482,7 @@ void setrangeCommand(client *c) {
             return;
 
         o = createObject(OBJ_STRING, sdsnewlen(NULL, offset + sdslen(value)));
-        o = dbAdd(c->db, c->argv[1], o);
+        dbAdd(c->db, c->argv[1], &o);
     } else {
         size_t olen;
 
@@ -598,7 +597,7 @@ void msetGenericCommand(client *c, int nx) {
     int setkey_flags = nx ? SETKEY_DOESNT_EXIST : 0;
     for (j = 1; j < c->argc; j += 2) {
         robj *val = tryObjectEncoding(c->argv[j + 1]);
-        val = setKey(c, c->db, c->argv[j], val, setkey_flags);
+        setKey(c, c->db, c->argv[j], &val, setkey_flags);
         incrRefCount(val);
         c->argv[j + 1] = val;
         notifyKeyspaceEvent(NOTIFY_STRING, "set", c->argv[j], c->db->id);
@@ -641,9 +640,9 @@ void incrDecrCommand(client *c, long long incr) {
     } else {
         new = createStringObjectFromLongLongForValue(value);
         if (o) {
-            new = dbReplaceValue(c->db, c->argv[1], new);
+            dbReplaceValue(c->db, c->argv[1], &new);
         } else {
-            new = dbAdd(c->db, c->argv[1], new);
+            dbAdd(c->db, c->argv[1], &new);
         }
     }
     signalModifiedKey(c, c->db, c->argv[1]);
@@ -696,9 +695,9 @@ void incrbyfloatCommand(client *c) {
     }
     new = createStringObjectFromLongDouble(value, 1);
     if (o)
-        new = dbReplaceValue(c->db, c->argv[1], new);
+        dbReplaceValue(c->db, c->argv[1], &new);
     else
-        new = dbAdd(c->db, c->argv[1], new);
+        dbAdd(c->db, c->argv[1], &new);
     signalModifiedKey(c, c->db, c->argv[1]);
     notifyKeyspaceEvent(NOTIFY_STRING, "incrbyfloat", c->argv[1], c->db->id);
     server.dirty++;
@@ -720,7 +719,7 @@ void appendCommand(client *c) {
     if (o == NULL) {
         /* Create the key */
         c->argv[2] = tryObjectEncoding(c->argv[2]);
-        c->argv[2] = dbAdd(c->db, c->argv[1], c->argv[2]);
+        dbAdd(c->db, c->argv[1], &c->argv[2]);
         incrRefCount(c->argv[2]);
         totlen = stringObjectLen(c->argv[2]);
     } else {

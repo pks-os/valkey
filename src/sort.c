@@ -577,7 +577,7 @@ void sortCommandGeneric(client *c, int readonly) {
         }
         if (outputlen) {
             listTypeTryConversion(sobj, LIST_CONV_AUTO, NULL, NULL);
-            setKey(c, c->db, storekey, sobj, 0);
+            setKey(c, c->db, storekey, &sobj, 0);
             /* Ownership of sobj transferred to the db. Set to NULL to prevent
              * freeing it below. */
             sobj = NULL;

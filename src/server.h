@@ -3549,16 +3549,16 @@ int objectSetLRUOrLFU(robj *val, long long lfu_freq, long long lru_idle, long lo
 #define LOOKUP_NOEFFECTS \
     (LOOKUP_NONOTIFY | LOOKUP_NOSTATS | LOOKUP_NOTOUCH | LOOKUP_NOEXPIRE) /* Avoid any effects from fetching the key */
 
-robj *dbAdd(serverDb *db, robj *key, robj *val);
-robj *dbAddRDBLoad(serverDb *db, sds key, robj *val);
-robj *dbReplaceValue(serverDb *db, robj *key, robj *val);
+void dbAdd(serverDb *db, robj *key, robj **valref);
+int dbAddRDBLoad(serverDb *db, sds key, robj **valref);
+void dbReplaceValue(serverDb *db, robj *key, robj **valref);
 
 #define SETKEY_KEEPTTL 1
 #define SETKEY_NO_SIGNAL 2
 #define SETKEY_ALREADY_EXIST 4
 #define SETKEY_DOESNT_EXIST 8
 #define SETKEY_ADD_OR_UPDATE 16 /* Key most likely doesn't exists */
-robj *setKey(client *c, serverDb *db, robj *key, robj *val, int flags);
+void setKey(client *c, serverDb *db, robj *key, robj **valref, int flags);
 robj *dbRandomKey(serverDb *db);
 int dbGenericDelete(serverDb *db, robj *key, int async, int flags);
 int dbSyncDelete(serverDb *db, robj *key);

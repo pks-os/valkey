@@ -1803,7 +1803,7 @@ void zaddGenericCommand(client *c, int flags) {
     if (zobj == NULL) {
         if (xx) goto reply_to_client; /* No key + XX option: nothing to do. */
         zobj = zsetTypeCreate(elements, maxelelen);
-        zobj = dbAdd(c->db, key, zobj);
+        dbAdd(c->db, key, &zobj);
     } else {
         zsetTypeMaybeConvert(zobj, elements, maxelelen);
     }
@@ -2782,7 +2782,7 @@ void zunionInterDiffGenericCommand(client *c, robj *dstkey, int numkeysIndex, in
     if (dstkey) {
         if (dstzset->zsl->length) {
             zsetConvertToListpackIfNeeded(dstobj, maxelelen, totelelen);
-            dstobj = setKey(c, c->db, dstkey, dstobj, 0);
+            setKey(c, c->db, dstkey, &dstobj, 0);
             addReplyLongLong(c, zsetLength(dstobj));
             notifyKeyspaceEvent(
                 NOTIFY_ZSET, (op == SET_OP_UNION) ? "zunionstore" : (op == SET_OP_INTER ? "zinterstore" : "zdiffstore"),
@@ -2985,7 +2985,7 @@ static void zrangeResultEmitLongLongForStore(zrange_result_handler *handler, lon
 
 static void zrangeResultFinalizeStore(zrange_result_handler *handler, size_t result_count) {
     if (result_count) {
-        handler->dstobj = setKey(handler->client, handler->client->db, handler->dstkey, handler->dstobj, 0);
+        setKey(handler->client, handler->client->db, handler->dstkey, &handler->dstobj, 0);
         addReplyLongLong(handler->client, result_count);
         notifyKeyspaceEvent(NOTIFY_ZSET, "zrangestore", handler->dstkey, handler->client->db->id);
         server.dirty++;
