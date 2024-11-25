@@ -672,12 +672,12 @@ dictType objToDictDictType = {
  * (channel name) is stored in each dict's metadata. */
 const void *hashtableChannelsDictGetKey(const void *entry) {
     const dict *d = entry;
-    return *((const void **)d->metadata);
+    return *((const void **)dictMetadata(d));
 }
 
 void hashtableChannelsDictDestructor(void *entry) {
     dict *d = entry;
-    robj *channel = *((void **)d->metadata);
+    robj *channel = *((void **)dictMetadata(d));
     decrRefCount(channel);
     dictRelease(d);
 }

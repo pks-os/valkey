@@ -763,13 +763,13 @@ void defragPubsubScanCallback(void *privdata, void *elemref) {
     defragPubSubCtx *pubsub_ctx = ctx->privdata;
     void **channel_dict_ref = (void **)elemref;
     dict *newclients, *clients = *channel_dict_ref;
-    robj *newchannel, *channel = *(robj **)clients->metadata;
+    robj *newchannel, *channel = *(robj **)dictMetadata(clients);
 
     /* Try to defrag the channel name. */
     serverAssert(channel->refcount == (int)dictSize(clients) + 1);
     newchannel = activeDefragStringObEx(channel, dictSize(clients) + 1);
     if (newchannel) {
-        *(robj **)clients->metadata = newchannel;
+        *(robj **)dictMetadata(clients) = newchannel;
 
         /* The channel name is shared by the client's pubsub(shard) and server's
          * pubsub(shard), after defraging the channel name, we need to update

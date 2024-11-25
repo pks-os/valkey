@@ -275,11 +275,11 @@ int pubsubSubscribeChannel(client *c, robj *channel, pubsubtype type) {
         void *existing;
         if (!kvstoreHashtableFindPositionForInsert(*type.serverPubSubChannels, slot, channel, &pos, &existing)) {
             clients = existing;
-            channel = *(robj **)clients->metadata;
+            channel = *(robj **)dictMetadata(clients);
         } else {
             /* Store pointer to channel name in the dict's metadata. */
             clients = dictCreate(&clientDictType);
-            memcpy(clients->metadata, (void *)&channel, sizeof(void *));
+            *(robj **)dictMetadata(clients) = channel;
             incrRefCount(channel);
             /* Insert this dict in the kvstore at the position returned above. */
             kvstoreHashtableInsertAtPosition(*type.serverPubSubChannels, slot, clients, &pos);
@@ -338,7 +338,7 @@ void pubsubShardUnsubscribeAllChannelsInSlot(unsigned int slot) {
     void *element;
     while (kvstoreHashtableIteratorNext(kvs_di, &element)) {
         dict *clients = element;
-        robj *channel = *(robj **)clients->metadata;
+        robj *channel = *(robj **)dictMetadata(clients);
         /* For each client subscribed to the channel, unsubscribe it. */
         dictIterator *iter = dictGetIterator(clients);
         dictEntry *entry;
@@ -694,7 +694,7 @@ void channelList(client *c, sds pat, kvstore *pubsub_channels) {
         void *next;
         while (kvstoreHashtableIteratorNext(kvs_di, &next)) {
             dict *clients = next;
-            robj *cobj = *(robj **)clients->metadata;
+            robj *cobj = *(robj **)dictMetadata(clients);
             sds channel = cobj->ptr;
 
             if (!pat || stringmatchlen(pat, sdslen(pat), channel, sdslen(channel), 0)) {
