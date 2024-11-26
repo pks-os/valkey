@@ -529,9 +529,9 @@ void fillCommandCDF(client *c, struct hdr_histogram *histogram) {
 void latencyAllCommandsFillCDF(client *c, hashtable *commands, int *command_with_data) {
     hashtableIterator iter;
     hashtableInitSafeIterator(&iter, commands);
-    struct serverCommand *cmd;
-
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    void *next;
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         if (cmd->latency_histogram) {
             addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
             fillCommandCDF(c, cmd->latency_histogram);
@@ -566,9 +566,9 @@ void latencySpecificCommandsFillCDF(client *c) {
         if (cmd->subcommands_ht) {
             hashtableIterator iter;
             hashtableInitSafeIterator(&iter, cmd->subcommands_ht);
-
-            struct serverCommand *sub;
-            while (hashtableNext(&iter, (void **)&sub)) {
+            void *next;
+            while (hashtableNext(&iter, &next)) {
+                struct serverCommand *sub = next;
                 if (sub->latency_histogram) {
                     addReplyBulkCBuffer(c, sub->fullname, sdslen(sub->fullname));
                     fillCommandCDF(c, sub->latency_histogram);

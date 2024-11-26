@@ -655,8 +655,9 @@ void ACLChangeSelectorPerm(aclSelector *selector, struct serverCommand *cmd, int
     if (cmd->subcommands_ht) {
         hashtableIterator iter;
         hashtableInitSafeIterator(&iter, cmd->subcommands_ht);
-        struct serverCommand *sub;
-        while (hashtableNext(&iter, (void **)&sub)) {
+        void *next;
+        while (hashtableNext(&iter, &next)) {
+            struct serverCommand *sub = next;
             ACLSetSelectorCommandBit(selector, sub->id, allow);
         }
         hashtableResetIterator(&iter);
@@ -672,8 +673,9 @@ void ACLChangeSelectorPerm(aclSelector *selector, struct serverCommand *cmd, int
 void ACLSetSelectorCommandBitsForCategory(hashtable *commands, aclSelector *selector, uint64_t cflag, int value) {
     hashtableIterator iter;
     hashtableInitIterator(&iter, commands);
-    struct serverCommand *cmd;
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    void *next;
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         if (cmd->acl_categories & cflag) {
             ACLChangeSelectorPerm(selector, cmd, value);
         }
@@ -739,8 +741,9 @@ void ACLCountCategoryBitsForCommands(hashtable *commands,
                                      uint64_t cflag) {
     hashtableIterator iter;
     hashtableInitIterator(&iter, commands);
-    struct serverCommand *cmd;
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    void *next;
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         if (cmd->acl_categories & cflag) {
             if (ACLGetSelectorCommandBit(selector, cmd->id))
                 (*on)++;
@@ -2757,9 +2760,9 @@ sds getAclErrorMessage(int acl_res, user *user, struct serverCommand *cmd, sds e
 void aclCatWithFlags(client *c, hashtable *commands, uint64_t cflag, int *arraylen) {
     hashtableIterator iter;
     hashtableInitIterator(&iter, commands);
-
-    struct serverCommand *cmd;
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    void *next;
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         if (cmd->acl_categories & cflag) {
             addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
             (*arraylen)++;

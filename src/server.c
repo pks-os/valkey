@@ -3187,11 +3187,11 @@ void populateCommandTable(void) {
 }
 
 void resetCommandTableStats(hashtable *commands) {
-    struct serverCommand *c;
     hashtableIterator iter;
-
+    void *next;
     hashtableInitSafeIterator(&iter, commands);
-    while (hashtableNext(&iter, (void **)&c)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *c = next;
         c->microseconds = 0;
         c->calls = 0;
         c->rejected_calls = 0;
@@ -3249,15 +3249,17 @@ void serverOpArrayFree(serverOpArray *oa) {
 /* ====================== Commands lookup and execution ===================== */
 
 int isContainerCommandBySds(sds s) {
-    struct serverCommand *base_cmd;
-    int found_command = hashtableFind(server.commands, s, (void **)&base_cmd);
+    void *entry;
+    int found_command = hashtableFind(server.commands, s, &entry);
+    struct serverCommand *base_cmd = entry;
     int has_subcommands = found_command && base_cmd->subcommands_ht;
     return has_subcommands;
 }
 
 struct serverCommand *lookupSubcommand(struct serverCommand *container, sds sub_name) {
-    struct serverCommand *subcommand = NULL;
-    hashtableFind(container->subcommands_ht, sub_name, (void **)&subcommand);
+    void *entry = NULL;
+    hashtableFind(container->subcommands_ht, sub_name, &entry);
+    struct serverCommand *subcommand = entry;
     return subcommand;
 }
 
@@ -3270,8 +3272,9 @@ struct serverCommand *lookupSubcommand(struct serverCommand *container, sds sub_
  * a user requested to execute (in processCommand).
  */
 struct serverCommand *lookupCommandLogic(hashtable *commands, robj **argv, int argc, int strict) {
-    struct serverCommand *base_cmd = NULL;
-    int found_command = hashtableFind(commands, argv[0]->ptr, (void **)&base_cmd);
+    void *entry = NULL;
+    int found_command = hashtableFind(commands, argv[0]->ptr, &entry);
+    struct serverCommand *base_cmd = entry;
     int has_subcommands = found_command && base_cmd->subcommands_ht;
     if (argc == 1 || !has_subcommands) {
         if (strict && argc != 1) return NULL;
@@ -4972,10 +4975,11 @@ void addReplyCommandSubCommands(client *c,
     else
         addReplyArrayLen(c, hashtableSize(cmd->subcommands_ht));
 
+    void *next;
     hashtableIterator iter;
-    struct serverCommand *sub;
     hashtableInitSafeIterator(&iter, cmd->subcommands_ht);
-    while (hashtableNext(&iter, (void **)&sub)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *sub = next;
         if (use_map) addReplyBulkCBuffer(c, sub->fullname, sdslen(sub->fullname));
         reply_function(c, sub);
     }
@@ -5133,11 +5137,11 @@ void getKeysSubcommand(client *c) {
 /* COMMAND (no args) */
 void commandCommand(client *c) {
     hashtableIterator iter;
-    struct serverCommand *cmd;
-
+    void *next;
     addReplyArrayLen(c, hashtableSize(server.commands));
     hashtableInitIterator(&iter, server.commands);
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         addReplyCommandInfo(c, cmd);
     }
     hashtableResetIterator(&iter);
@@ -5193,10 +5197,10 @@ int shouldFilterFromCommandList(struct serverCommand *cmd, commandListFilter *fi
 /* COMMAND LIST FILTERBY (MODULE <module-name>|ACLCAT <cat>|PATTERN <pattern>) */
 void commandListWithFilter(client *c, hashtable *commands, commandListFilter filter, int *numcmds) {
     hashtableIterator iter;
+    void *next;
     hashtableInitIterator(&iter, commands);
-
-    struct serverCommand *cmd;
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         if (!shouldFilterFromCommandList(cmd, &filter)) {
             addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
             (*numcmds)++;
@@ -5212,10 +5216,10 @@ void commandListWithFilter(client *c, hashtable *commands, commandListFilter fil
 /* COMMAND LIST */
 void commandListWithoutFilter(client *c, hashtable *commands, int *numcmds) {
     hashtableIterator iter;
-    struct serverCommand *cmd;
+    void *next;
     hashtableInitIterator(&iter, commands);
-
-    while (hashtableNext(&iter, (void **)&cmd)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *cmd = next;
         addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
         (*numcmds)++;
 
@@ -5273,10 +5277,11 @@ void commandInfoCommand(client *c) {
 
     if (c->argc == 2) {
         hashtableIterator iter;
-        struct serverCommand *cmd;
+        void *next;
         addReplyArrayLen(c, hashtableSize(server.commands));
         hashtableInitIterator(&iter, server.commands);
-        while (hashtableNext(&iter, (void **)&cmd)) {
+        while (hashtableNext(&iter, &next)) {
+            struct serverCommand *cmd = next;
             addReplyCommandInfo(c, cmd);
         }
         hashtableResetIterator(&iter);
@@ -5294,10 +5299,11 @@ void commandDocsCommand(client *c) {
     if (c->argc == 2) {
         /* Reply with an array of all commands */
         hashtableIterator iter;
-        struct serverCommand *cmd;
+        void *next;
         addReplyMapLen(c, hashtableSize(server.commands));
         hashtableInitIterator(&iter, server.commands);
-        while (hashtableNext(&iter, (void **)&cmd)) {
+        while (hashtableNext(&iter, &next)) {
+            struct serverCommand *cmd = next;
             addReplyBulkCBuffer(c, cmd->fullname, sdslen(cmd->fullname));
             addReplyCommandDocs(c, cmd);
         }
@@ -5422,10 +5428,11 @@ const char *getSafeInfoString(const char *s, size_t len, char **tmp) {
 }
 
 sds genValkeyInfoStringCommandStats(sds info, hashtable *commands) {
-    struct serverCommand *c;
     hashtableIterator iter;
+    void *next;
     hashtableInitSafeIterator(&iter, commands);
-    while (hashtableNext(&iter, (void **)&c)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *c = next;
         char *tmpsafe;
         if (c->calls || c->failed_calls || c->rejected_calls) {
             info = sdscatprintf(info,
@@ -5458,10 +5465,11 @@ sds genValkeyInfoStringACLStats(sds info) {
 }
 
 sds genValkeyInfoStringLatencyStats(sds info, hashtable *commands) {
-    struct serverCommand *c;
     hashtableIterator iter;
+    void *next;
     hashtableInitSafeIterator(&iter, commands);
-    while (hashtableNext(&iter, (void **)&c)) {
+    while (hashtableNext(&iter, &next)) {
+        struct serverCommand *c = next;
         char *tmpsafe;
         if (c->latency_histogram) {
             info = fillPercentileDistributionLatencies(
