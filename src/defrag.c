@@ -663,20 +663,17 @@ void defragKey(defragCtx *ctx, robj **elemref) {
     unsigned char *newzl;
     ob = *elemref;
 
-    /* Find the pointer in the expire table to this object, if any. */
-    /* TODO: Only lookup the expire table when the object has actually been
-     * reallocated. A trick is hashtableFindRefByKeyAndOldValue(s, key, ob). */
-    void **expireref = NULL;
-    if (objectGetExpire(ob) >= 0) {
-        expireref = kvstoreHashtableFindRef(db->expires, slot, objectGetKey(ob));
-        serverAssert(expireref != NULL);
-    }
-
-    /* Try to defrag robj and / or string value. */
+    /* Try to defrag robj and/or string value. */
     if ((newob = activeDefragStringOb(ob))) {
         *elemref = newob;
+        if (objectGetExpire(newob) >= 0) {
+            /* Replace the pointer in the expire table without accessing the old
+             * pointer. */
+            hashtable *expires_ht = kvstoreGetHashtable(db->expires, slot);
+            int replaced = hashtableReplaceReallocatedEntry(expires_ht, ob, newob);
+            serverAssert(replaced);
+        }
         ob = newob;
-        if (expireref != NULL) *expireref = newob;
     }
 
     if (ob->type == OBJ_STRING) {
