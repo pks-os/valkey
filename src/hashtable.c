@@ -1896,7 +1896,7 @@ int hashtableNext(hashtableIterator *iterator, void **elemptr) {
  * if the table is empty. */
 int hashtableRandomEntry(hashtable *ht, void **found) {
     void *samples[WEAK_RANDOM_SAMPLE_SIZE];
-    unsigned count = hashtableSampleEntries(ht, (void **)&samples, WEAK_RANDOM_SAMPLE_SIZE);
+    unsigned count = hashtableSampleEntries(ht, &samples[0], WEAK_RANDOM_SAMPLE_SIZE);
     if (count == 0) return 0;
     unsigned idx = random() % count;
     *found = samples[idx];
@@ -1907,7 +1907,7 @@ int hashtableRandomEntry(hashtable *ht, void **found) {
  * if the table is empty. This one is more fair than hashtableRandomEntry(). */
 int hashtableFairRandomEntry(hashtable *ht, void **found) {
     void *samples[FAIR_RANDOM_SAMPLE_SIZE];
-    unsigned count = hashtableSampleEntries(ht, (void **)&samples, FAIR_RANDOM_SAMPLE_SIZE);
+    unsigned count = hashtableSampleEntries(ht, &samples[0], FAIR_RANDOM_SAMPLE_SIZE);
     if (count == 0) return 0;
     unsigned idx = random() % count;
     *found = samples[idx];

@@ -135,8 +135,9 @@ static int add_find_delete_test_helper(int flags) {
         char key[32], val[32];
         snprintf(key, sizeof(key), "%d", j);
         snprintf(val, sizeof(val), "%d", count - j + 42);
-        keyval *e;
-        TEST_ASSERT(hashtableFind(ht, key, (void **)&e));
+        void *found;
+        TEST_ASSERT(hashtableFind(ht, key, &found));
+        keyval *e = found;
         TEST_ASSERT(!strcmp(val, getval(e)));
     }
 
@@ -148,8 +149,9 @@ static int add_find_delete_test_helper(int flags) {
             /* Test hashtablePop */
             char val[32];
             snprintf(val, sizeof(val), "%d", count - j + 42);
-            keyval *e;
-            TEST_ASSERT(hashtablePop(ht, key, (void **)&e));
+            void *popped;
+            TEST_ASSERT(hashtablePop(ht, key, &popped));
+            keyval *e = popped;
             TEST_ASSERT(!strcmp(val, getval(e)));
             free(e);
         } else {
@@ -281,8 +283,9 @@ int test_two_phase_insert_and_pop(int argc, char **argv, int flags) {
         char key[32], val[32];
         snprintf(key, sizeof(key), "%d", j);
         snprintf(val, sizeof(val), "%d", count - j + 42);
-        keyval *e;
-        TEST_ASSERT(hashtableFind(ht, key, (void **)&e));
+        void *found;
+        TEST_ASSERT(hashtableFind(ht, key, &found));
+        keyval *e = found;
         TEST_ASSERT(!strcmp(val, getval(e)));
     }
 
@@ -332,8 +335,8 @@ int test_incremental_find(int argc, char **argv, int flags) {
     elapsedStart(&timer);
     for (size_t i = 0; i < count; i++) {
         uint8_t *key = &element_array[i];
-        uint8_t *found;
-        TEST_ASSERT(hashtableFind(ht, key, (void **)&found) == 1);
+        void *found;
+        TEST_ASSERT(hashtableFind(ht, key, &found) == 1);
         TEST_ASSERT(found == key);
     }
     uint64_t us2 = elapsedUs(timer);
@@ -363,8 +366,8 @@ int test_incremental_find(int argc, char **argv, int flags) {
 
             /* Fetch results. */
             for (size_t i = 0; i < batch_size; i++) {
-                uint8_t *found;
-                TEST_ASSERT(hashtableIncrementalFindGetResult(&states[i], (void **)&found) == 1);
+                void *found;
+                TEST_ASSERT(hashtableIncrementalFindGetResult(&states[i], &found) == 1);
                 TEST_ASSERT(found == &element_array[batch * batch_size + i]);
             }
         }
@@ -493,9 +496,10 @@ int test_iterator(int argc, char **argv, int flags) {
     /* Iterate */
     size_t num_returned = 0;
     hashtableIterator iter;
+    void *next;
     hashtableInitIterator(&iter, ht);
-    uint8_t *entry;
-    while (hashtableNext(&iter, (void **)&entry)) {
+    while (hashtableNext(&iter, &next)) {
+        uint8_t *entry = next;
         num_returned++;
         TEST_ASSERT(entry >= entry_array && entry < entry_array + count);
         /* increment entry at this position as a counter */
@@ -537,9 +541,10 @@ int test_safe_iterator(int argc, char **argv, int flags) {
     /* Iterate */
     size_t num_returned = 0;
     hashtableIterator iter;
+    void *next;
     hashtableInitSafeIterator(&iter, ht);
-    uint8_t *entry;
-    while (hashtableNext(&iter, (void **)&entry)) {
+    while (hashtableNext(&iter, &next)) {
+        uint8_t *entry = next;
         size_t index = entry - entry_counts;
         num_returned++;
         TEST_ASSERT(entry >= entry_counts && entry < entry_counts + count * 2);
@@ -604,7 +609,7 @@ int test_compact_bucket_chain(int argc, char **argv, int flags) {
     hashtableIterator iter;
     hashtableInitSafeIterator(&iter, ht);
     void *entry;
-    while (hashtableNext(&iter, (void **)&entry)) {
+    while (hashtableNext(&iter, &entry)) {
         /* As long as the iterator is still returning entries from the same
          * bucket chain, the bucket chain is not compacted, so it still has the
          * same number of buckets. */
@@ -655,12 +660,12 @@ int test_random_entry(int argc, char **argv, int flags) {
     /* Pick entries, and count how many times each entry is picked. */
     for (long i = 0; i < num_rounds; i++) {
         /* Using void* variable to avoid a cast that violates strict aliasing */
-        unsigned *entry;
-        TEST_ASSERT(hashtableFairRandomEntry(ht, (void **)&entry));
-
-        TEST_ASSERT(entry >= times_picked && entry < times_picked + count);
+        void *entry;
+        TEST_ASSERT(hashtableFairRandomEntry(ht, &entry));
+        unsigned *picked = entry;
+        TEST_ASSERT(picked >= times_picked && picked < times_picked + count);
         /* increment entry at this position as a counter */
-        (*entry)++;
+        (*picked)++;
     }
     hashtableRelease(ht);
 
@@ -787,9 +792,10 @@ int test_random_entry_with_long_chain(int argc, char **argv, int flags) {
     printf("Taking %zu random samples\n", num_samples);
     size_t count_chain_entry_picked = 0;
     for (size_t i = 0; i < num_samples; i++) {
-        mock_hash_entry *entry;
-        TEST_ASSERT(hashtableFairRandomEntry(ht, (void **)&entry));
-        if (entry->hash == chain_hash) {
+        void *entry;
+        TEST_ASSERT(hashtableFairRandomEntry(ht, &entry));
+        mock_hash_entry *mock_entry = entry;
+        if (mock_entry->hash == chain_hash) {
             count_chain_entry_picked++;
         }
     }
