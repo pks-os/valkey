@@ -1368,6 +1368,38 @@ int hashtableDelete(hashtable *ht, const void *key) {
     }
 }
 
+/* When an entry has been reallocated, it can be replaced in a hash table
+ * without dereferencing the old pointer which may no longer be valid. The new
+ * entry with the same key and hash is used for finding the old entry and
+ * replacing it with the new entry. Returns 1 if the entry was replaced and 0 if
+ * the entry wasn't found. */
+int hashtableReplaceReallocatedEntry(hashtable *ht, const void *old_entry, void *new_entry) {
+    const void *key = entryGetKey(ht, new_entry);
+    uint64_t hash = hashKey(ht, key);
+    uint8_t h2 = highBits(hash);
+    for (int table = 0; table <= 1; table++) {
+        if (ht->used[table] == 0) continue;
+        size_t mask = expToMask(ht->bucket_exp[table]);
+        size_t bucket_idx = hash & mask;
+        /* Skip already rehashed buckets. */
+        if (table == 0 && ht->rehash_idx >= 0 && bucket_idx < (size_t)ht->rehash_idx) {
+            continue;
+        }
+        bucket *b = &ht->tables[table][bucket_idx];
+        do {
+            for (int pos = 0; pos < numBucketPoitions(b); pos++) {
+                if (isPositionFilled(b, pos) && b->hashes[pos] == h2 && b->entries[pos] == old_entry) {
+                    /* It's a match. */
+                    b->entries[pos] = new_entry;
+                    return 1;
+                }
+            }
+            b = bucketNext(b);
+        } while (b != NULL);
+    }
+    return 0;
+}
+
 /* Two-phase pop: Look up an entry, do something with it, then delete it
  * without searching the hash table again.
  *

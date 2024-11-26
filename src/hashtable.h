@@ -136,6 +136,7 @@ int hashtablePop(hashtable *ht, const void *key, void **popped);
 int hashtableDelete(hashtable *ht, const void *key);
 void **hashtableTwoPhasePopFindRef(hashtable *ht, const void *key, hashtablePosition *position);
 void hashtableTwoPhasePopDelete(hashtable *ht, hashtablePosition *position);
+int hashtableReplaceReallocatedEntry(hashtable *ht, const void *old_entry, void *new_entry);
 void hashtableIncrementalFindInit(hashtableIncrementalFindState *state, hashtable *ht, const void *key);
 int hashtableIncrementalFindStep(hashtableIncrementalFindState *state);
 int hashtableIncrementalFindGetResult(hashtableIncrementalFindState *state, void **found);

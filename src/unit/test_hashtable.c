@@ -310,6 +310,60 @@ int test_two_phase_insert_and_pop(int argc, char **argv, int flags) {
     return 0;
 }
 
+int test_replace_reallocated_entry(int argc, char **argv, int flags) {
+    UNUSED(argc);
+    UNUSED(argv);
+    UNUSED(flags);
+
+    int count = 100, j;
+    hashtable *ht = hashtableCreate(&keyval_type);
+
+    /* Add */
+    for (j = 0; j < count; j++) {
+        char key[32], val[32];
+        snprintf(key, sizeof(key), "%d", j);
+        snprintf(val, sizeof(val), "%d", count - j + 42);
+        keyval *e = create_keyval(key, val);
+        TEST_ASSERT(hashtableAdd(ht, e));
+    }
+
+    /* Find and replace */
+    for (j = 0; j < count; j++) {
+        char key[32], val[32];
+        snprintf(key, sizeof(key), "%d", j);
+        snprintf(val, sizeof(val), "%d", count - j + 42);
+        void *found;
+        TEST_ASSERT(hashtableFind(ht, key, &found));
+        keyval *old = found;
+        TEST_ASSERT(strcmp(getkey(old), key) == 0);
+        TEST_ASSERT(strcmp(getval(old), val) == 0);
+        free(old);
+        snprintf(val, sizeof(val), "%d", j + 1234);
+        keyval *new = create_keyval(key, val);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuse-after-free"
+        /* The function compares 'old' by pointer, but it does not access the
+         * free'd memory. */
+        TEST_ASSERT(hashtableReplaceReallocatedEntry(ht, old, new));
+#pragma GCC diagnostic pop
+    }
+
+    /* Check */
+    for (j = 0; j < count; j++) {
+        char key[32], val[32];
+        snprintf(key, sizeof(key), "%d", j);
+        snprintf(val, sizeof(val), "%d", j + 1234);
+        void *found;
+        TEST_ASSERT(hashtableFind(ht, key, &found));
+        keyval *e = found;
+        TEST_ASSERT(!strcmp(val, getval(e)));
+    }
+
+    hashtableRelease(ht);
+    TEST_ASSERT(zmalloc_used_memory() == 0);
+    return 0;
+}
+
 int test_incremental_find(int argc, char **argv, int flags) {
     UNUSED(argc);
     UNUSED(argv);
