@@ -652,8 +652,9 @@ void pubsubCommand(client *c) {
 
         addReplyArrayLen(c, (c->argc - 2) * 2);
         for (j = 2; j < c->argc; j++) {
-            dict *d = NULL;
-            kvstoreHashtableFind(server.pubsub_channels, 0, c->argv[j], (void **)&d);
+            void *found = NULL;
+            kvstoreHashtableFind(server.pubsub_channels, 0, c->argv[j], &found);
+            dict *d = found;
             addReplyBulk(c, c->argv[j]);
             addReplyLongLong(c, d ? dictSize(d) : 0);
         }
@@ -671,9 +672,9 @@ void pubsubCommand(client *c) {
         for (j = 2; j < c->argc; j++) {
             sds key = c->argv[j]->ptr;
             unsigned int slot = server.cluster_enabled ? keyHashSlot(key, (int)sdslen(key)) : 0;
-            dict *clients = NULL;
-            kvstoreHashtableFind(server.pubsubshard_channels, slot, c->argv[j], (void **)&clients);
-
+            void *found = NULL;
+            kvstoreHashtableFind(server.pubsubshard_channels, slot, c->argv[j], &found);
+            dict *clients = found;
             addReplyBulk(c, c->argv[j]);
             addReplyLongLong(c, clients ? dictSize(clients) : 0);
         }

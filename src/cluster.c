@@ -909,10 +909,11 @@ void clusterCommand(client *c) {
         unsigned int numkeys = maxkeys > keys_in_slot ? keys_in_slot : maxkeys;
         addReplyArrayLen(c, numkeys);
         kvstoreHashtableIterator *kvs_di = NULL;
-        robj *valkey = NULL;
         kvs_di = kvstoreGetHashtableIterator(server.db->keys, slot);
         for (unsigned int i = 0; i < numkeys; i++) {
-            serverAssert(kvstoreHashtableIteratorNext(kvs_di, (void **)&valkey));
+            void *next;
+            serverAssert(kvstoreHashtableIteratorNext(kvs_di, &next));
+            robj *valkey = next;
             sds sdskey = objectGetKey(valkey);
             addReplyBulkCBuffer(c, sdskey, sdslen(sdskey));
         }

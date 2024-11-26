@@ -1316,7 +1316,6 @@ werr:
 }
 
 ssize_t rdbSaveDb(rio *rdb, int dbid, int rdbflags, long *key_counter) {
-    robj *o;
     ssize_t written = 0;
     ssize_t res;
     kvstoreIterator *kvs_it = NULL;
@@ -1345,7 +1344,9 @@ ssize_t rdbSaveDb(rio *rdb, int dbid, int rdbflags, long *key_counter) {
     kvs_it = kvstoreIteratorInit(db->keys);
     int last_slot = -1;
     /* Iterate this DB writing every entry */
-    while (kvstoreIteratorNext(kvs_it, (void **)&o)) {
+    void *next;
+    while (kvstoreIteratorNext(kvs_it, &next)) {
+        robj *o = next;
         int curr_slot = kvstoreIteratorGetCurrentHashtableIndex(kvs_it);
         /* Save slot info. */
         if (server.cluster_enabled && curr_slot != last_slot) {

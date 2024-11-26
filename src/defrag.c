@@ -870,8 +870,9 @@ int defragLaterStep(serverDb *db, int slot, long long endtime) {
         }
 
         /* each time we enter this function we need to fetch the object again (if it still exists) */
-        robj *ob = NULL;
-        kvstoreHashtableFind(db->keys, slot, defrag_later_current_key, (void **)&ob);
+        void *found = NULL;
+        kvstoreHashtableFind(db->keys, slot, defrag_later_current_key, &found);
+        robj *ob = found;
         key_defragged = server.stat_active_defrag_hits;
         do {
             int quit = 0;

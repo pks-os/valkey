@@ -2190,7 +2190,6 @@ werr:
 }
 
 int rewriteAppendOnlyFileRio(rio *aof) {
-    robj *o;
     int j;
     long key_count = 0;
     long long updated_time = 0;
@@ -2219,7 +2218,9 @@ int rewriteAppendOnlyFileRio(rio *aof) {
 
         kvs_it = kvstoreIteratorInit(db->keys);
         /* Iterate this DB writing every entry */
-        while (kvstoreIteratorNext(kvs_it, (void **)&o)) {
+        void *next;
+        while (kvstoreIteratorNext(kvs_it, &next)) {
+            robj *o = next;
             sds keystr;
             robj key;
             long long expiretime;

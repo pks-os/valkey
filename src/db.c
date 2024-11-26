@@ -421,19 +421,17 @@ void setKey(client *c, serverDb *db, robj *key, robj **valref, int flags) {
  *
  * The function makes sure to return keys not already expired. */
 robj *dbRandomKey(serverDb *db) {
-    robj *valkey;
     int maxtries = 100;
     int allvolatile = kvstoreSize(db->keys) == kvstoreSize(db->expires);
 
     while (1) {
-        sds key;
-        robj *keyobj;
+        void *entry;
         int randomDictIndex = kvstoreGetFairRandomHashtableIndex(db->keys);
-        int ok = kvstoreHashtableFairRandomEntry(db->keys, randomDictIndex, (void **)&valkey);
+        int ok = kvstoreHashtableFairRandomEntry(db->keys, randomDictIndex, &entry);
         if (!ok) return NULL;
-
-        key = objectGetKey(valkey);
-        keyobj = createStringObject(key, sdslen(key));
+        robj *valkey = entry;
+        sds key = objectGetKey(valkey);
+        robj *keyobj = createStringObject(key, sdslen(key));
         if (objectIsExpired(valkey)) {
             if (allvolatile && (server.primary_host || server.import_mode) && --maxtries == 0) {
                 /* If the DB is composed only of keys with an expire set,
@@ -875,7 +873,6 @@ void randomkeyCommand(client *c) {
 }
 
 void keysCommand(client *c) {
-    robj *val;
     sds pattern = c->argv[1]->ptr;
     int plen = sdslen(pattern), allkeys, pslot = -1;
     unsigned long numkeys = 0;
@@ -891,11 +888,13 @@ void keysCommand(client *c) {
     } else {
         kvs_it = kvstoreIteratorInit(c->db->keys);
     }
-    robj keyobj;
-    while (kvs_di ? kvstoreHashtableIteratorNext(kvs_di, (void **)&val) : kvstoreIteratorNext(kvs_it, (void **)&val)) {
+    void *next;
+    while (kvs_di ? kvstoreHashtableIteratorNext(kvs_di, &next) : kvstoreIteratorNext(kvs_it, &next)) {
+        robj *val = next;
         sds key = objectGetKey(val);
 
         if (allkeys || stringmatchlen(pattern, plen, key, sdslen(key), 0)) {
+            robj keyobj;
             initStaticStringObject(keyobj, key);
             if (!keyIsExpired(c->db, &keyobj)) {
                 addReplyBulkCBuffer(c, key, sdslen(key));
@@ -1739,9 +1738,10 @@ void swapdbCommand(client *c) {
  *----------------------------------------------------------------------------*/
 
 int removeExpire(serverDb *db, robj *key) {
-    robj *val;
     int dict_index = getKVStoreIndexForKey(key->ptr);
-    if (kvstoreHashtablePop(db->expires, dict_index, key->ptr, (void **)&val)) {
+    void *popped;
+    if (kvstoreHashtablePop(db->expires, dict_index, key->ptr, &popped)) {
+        robj *val = popped;
         robj *newval = objectSetExpire(val, -1);
         serverAssert(newval == val);
         debugServerAssert(getExpire(db, key) == -1);

@@ -146,7 +146,7 @@ int evictionPoolPopulate(serverDb *db, kvstore *samplekvs, struct evictionPoolEn
     void *samples[server.maxmemory_samples];
 
     int slot = kvstoreGetFairRandomHashtableIndex(samplekvs);
-    count = kvstoreHashtableSampleEntries(samplekvs, slot, (void **)&samples, server.maxmemory_samples);
+    count = kvstoreHashtableSampleEntries(samplekvs, slot, &samples[0], server.maxmemory_samples);
     for (j = 0; j < count; j++) {
         unsigned long long idle;
         robj *o = samples[j];
@@ -605,7 +605,8 @@ int performEvictions(void) {
                     } else {
                         kvs = server.db[bestdbid].expires;
                     }
-                    int found = kvstoreHashtableFind(kvs, pool[k].slot, pool[k].key, (void **)&valkey);
+                    void *entry = NULL;
+                    int found = kvstoreHashtableFind(kvs, pool[k].slot, pool[k].key, &entry);
 
                     /* Remove the entry from the pool. */
                     if (pool[k].key != pool[k].cached) sdsfree(pool[k].key);
@@ -615,6 +616,7 @@ int performEvictions(void) {
                     /* If the key exists, is our pick. Otherwise it is
                      * a ghost and we need to try the next element. */
                     if (found) {
+                        valkey = entry;
                         bestkey = objectGetKey(valkey);
                         break;
                     } else {
