@@ -5668,6 +5668,17 @@ sds genValkeyInfoString(dict *section_dict, int all_sections, int everything) {
         unsigned long blocking_keys, blocking_keys_on_nokey, watched_keys;
         getExpansiveClientsInfo(&maxin, &maxout);
         totalNumberOfStatefulKeys(&blocking_keys, &blocking_keys_on_nokey, &watched_keys);
+
+        char *paused_actions = "none";
+        long long paused_timeout = 0;
+        if (server.paused_actions & PAUSE_ACTION_CLIENT_ALL) {
+            paused_actions = "all";
+            paused_timeout = getPausedActionTimeout(PAUSE_ACTION_CLIENT_ALL);
+        } else if (server.paused_actions & PAUSE_ACTION_CLIENT_WRITE) {
+            paused_actions = "write";
+            paused_timeout = getPausedActionTimeout(PAUSE_ACTION_CLIENT_WRITE);
+        }
+
         if (sections++) info = sdscat(info, "\r\n");
         info = sdscatprintf(
             info,
@@ -5684,7 +5695,9 @@ sds genValkeyInfoString(dict *section_dict, int all_sections, int everything) {
                 "clients_in_timeout_table:%llu\r\n", (unsigned long long)raxSize(server.clients_timeout_table),
                 "total_watched_keys:%lu\r\n", watched_keys,
                 "total_blocking_keys:%lu\r\n", blocking_keys,
-                "total_blocking_keys_on_nokey:%lu\r\n", blocking_keys_on_nokey));
+                "total_blocking_keys_on_nokey:%lu\r\n", blocking_keys_on_nokey,
+                "paused_actions:%s\r\n", paused_actions,
+                "paused_timeout_milliseconds:%lld\r\n", paused_timeout));
     }
 
     /* Memory */
@@ -6696,7 +6709,7 @@ void serverOutOfMemoryHandler(size_t allocation_size) {
 /* Callback for sdstemplate on proc-title-template. See valkey.conf for
  * supported variables.
  */
-static sds serverProcTitleGetVariable(const sds varname, void *arg) {
+static sds serverProcTitleGetVariable(const_sds varname, void *arg) {
     if (!strcmp(varname, "title")) {
         return sdsnew(arg);
     } else if (!strcmp(varname, "listen-addr")) {
